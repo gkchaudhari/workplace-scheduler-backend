@@ -4,7 +4,7 @@ namespace workplace_scheduler.Services
 {
     public interface IAuthService
     {
-        Task<UserDto> SignupAsync(SignupDto dto);
-        Task<UserDto?> LoginAsync(LoginDto dto);
+        Task<AuthResult> SignupAsync(SignupDto dto);
+        Task<AuthResult?> LoginAsync(LoginDto dto);
     }
 }

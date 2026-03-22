@@ -1,40 +1,92 @@
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi;
 using Npgsql.EntityFrameworkCore.PostgreSQL;
+using System.Text;
+using Swashbuckle.AspNetCore;
 using workplace_scheduler.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
-
+// Add services
 builder.Services.AddControllers();
 
-// Configure CORS to allow requests from the frontend (adjust origin as needed)
+// CORS
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy(name: "AllowFrontend",
-        policy =>
-        {
-            policy.WithOrigins("http://localhost:4200")
-                  .AllowAnyHeader()
-                  .AllowAnyMethod()
-                  .AllowCredentials();
-        });
+    options.AddPolicy("AllowFrontend", policy =>
+    {
+        policy.WithOrigins("http://localhost:4200")
+              .AllowAnyHeader()
+              .AllowAnyMethod()
+              .AllowCredentials();
+    });
 });
 
-// Configure Swagger/OpenAPI using Swashbuckle
+// Swagger + JWT support
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(options =>
+{
+    options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        Description = "Enter JWT token like: Bearer {token}",
+        Name = "Authorization",
+        In = ParameterLocation.Header,
+        Type = SecuritySchemeType.Http,
+        Scheme = "bearer",
+        BearerFormat = "JWT"
+    });
 
-// Configure Postgres DbContext and auth service
-var conn = builder.Configuration.GetConnectionString("postgresql");
+    options.AddSecurityRequirement(document => new OpenApiSecurityRequirement
+    {
+        [new OpenApiSecuritySchemeReference("bearer", document)] = []
+    });
+});
+
+// PostgreSQL DbContext
+var conn = builder.Configuration.GetConnectionString("postgresql")
+          ?? builder.Configuration.GetConnectionString("Default");
+
 builder.Services.AddDbContext<workplace_scheduler.Data.AppDbContext>(opt =>
     opt.UseNpgsql(conn));
 
-builder.Services.AddScoped<IAuthService,AuthService>();
+// JWT Config
+var jwtSection = builder.Configuration.GetSection("Jwt");
+var key = jwtSection.GetValue<string>("Key") ?? throw new Exception("JWT Key missing");
+var issuer = jwtSection.GetValue<string>("Issuer");
+var audience = jwtSection.GetValue<string>("Audience");
+
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+})
+.AddJwtBearer(options =>
+{
+    options.TokenValidationParameters = new TokenValidationParameters
+    {
+        ValidateIssuer = true,
+        ValidIssuer = issuer,
+
+        ValidateAudience = true,
+        ValidAudience = audience,
+
+        ValidateIssuerSigningKey = true,
+        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key)),
+
+        ValidateLifetime = true,
+        ClockSkew = TimeSpan.Zero // optional but recommended
+    };
+});
+
+// Services
+builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IRoomService, RoomService>();
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
+// Pipeline
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
@@ -43,9 +95,9 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
-// Use CORS policy
 app.UseCors("AllowFrontend");
 
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
