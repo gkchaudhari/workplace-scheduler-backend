@@ -64,6 +64,7 @@ namespace workplace_scheduler.Services
 
             var claims = new[] {
                 new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
+                new Claim(System.Security.Claims.ClaimTypes.NameIdentifier, user.Id.ToString()),
                 new Claim(JwtRegisteredClaimNames.Email, user.Email),
                 new Claim("fullName", user.FullName),
                 new Claim(ClaimTypes.Role, user.Role)

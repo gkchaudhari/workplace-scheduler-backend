@@ -9,5 +9,6 @@ namespace workplace_scheduler.Data
 
         public DbSet<User> Users { get; set; } = null!;
         public DbSet<Room> Rooms { get; set; } = null!;
+        public DbSet<Booking> Bookings { get; set; } = null!;
     }
 }
