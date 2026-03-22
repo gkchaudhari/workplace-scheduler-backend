@@ -5,6 +5,7 @@ using Microsoft.OpenApi;
 using Npgsql.EntityFrameworkCore.PostgreSQL;
 using System.Text;
 using Swashbuckle.AspNetCore;
+using Microsoft.AspNetCore.OpenApi;
 using workplace_scheduler.Services;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -28,14 +29,13 @@ builder.Services.AddCors(options =>
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
-    options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    //IMP: Swagger automatically add bearer word 
+    options.AddSecurityDefinition("bearer", new OpenApiSecurityScheme
     {
-        Description = "Enter JWT token like: Bearer {token}",
-        Name = "Authorization",
-        In = ParameterLocation.Header,
         Type = SecuritySchemeType.Http,
         Scheme = "bearer",
-        BearerFormat = "JWT"
+        BearerFormat = "JWT",
+        Description = "JWT Authorization header using the Bearer scheme."
     });
 
     options.AddSecurityRequirement(document => new OpenApiSecurityRequirement
@@ -77,6 +77,33 @@ builder.Services.AddAuthentication(options =>
 
         ValidateLifetime = true,
         ClockSkew = TimeSpan.Zero // optional but recommended
+    };
+
+    options.Events = new JwtBearerEvents
+    {
+        OnMessageReceived = ctx =>
+        {
+            var authHeader = ctx.Request.Headers["Authorization"].ToString();
+            Console.WriteLine("Raw Header: " + authHeader);
+
+            Console.WriteLine("Extracted Token: " + ctx.Token);
+            return Task.CompletedTask;
+        },
+        OnAuthenticationFailed = ctx =>
+        {
+            Console.WriteLine("JWT auth failed: " + ctx.Exception?.Message);
+            return Task.CompletedTask;
+        },
+        OnChallenge = ctx =>
+        {
+            Console.WriteLine("JWT challenge: " + ctx.Error + " - " + ctx.ErrorDescription);
+            return Task.CompletedTask;
+        },
+        OnTokenValidated = ctx =>
+        {
+            Console.WriteLine("JWT validated for: " + ctx.Principal?.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value);
+            return Task.CompletedTask;
+        }
     };
 });
 
